@@ -20,6 +20,12 @@ env/
 
 # Runtime artifacts
 *.log
+screenshots/*.png
+
+# Local copies and backups
+* - Copy.*
+*- Copy.*
 
 # Downloaded model binaries
 models/*.task
+
