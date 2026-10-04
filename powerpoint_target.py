@@ -80,13 +80,10 @@ class PowerPointTarget:
                 title_lower = title.lower()
                 cls_lower = cls_name.lower()
 
-                # Priority 1: Presenter View
                 if "presenter view" in title_lower or "mode présentateur" in title_lower:
                     candidates.append((1, hwnd, "Presenter View", title))
-                # Priority 2: Slide Show mode
                 elif "screenclass" in cls_lower or "slide show" in title_lower or "diaporama" in title_lower:
                     candidates.append((2, hwnd, "Slide Show", title))
-                # Priority 3: Active PowerPoint presentation window
                 elif "pptframeclass" in cls_lower or ("powerpoint" in title_lower and not "gesture" in title_lower):
                     candidates.append((3, hwnd, "PowerPoint Window", title))
 
@@ -106,7 +103,6 @@ class PowerPointTarget:
             self.last_target_hwnd = None
             return None, "None"
 
-        # Sort by priority rank (1 is highest)
         candidates.sort(key=lambda c: c[0])
         best = candidates[0]
         self.last_target_hwnd = best[1]
@@ -126,11 +122,9 @@ class PowerPointTarget:
             if fg_hwnd == hwnd:
                 return True
 
-            # If minimized, restore it
             if self.user32.IsIconic(hwnd):
-                self.user32.ShowWindow(hwnd, 9)  # 9 = SW_RESTORE
+                self.user32.ShowWindow(hwnd, 9)
 
-            # Attach thread input to bypass foreground lock if needed
             cur_thread = self.user32.GetWindowThreadProcessId(fg_hwnd, None) if fg_hwnd else 0
             target_thread = self.user32.GetWindowThreadProcessId(hwnd, None)
 
@@ -139,16 +133,15 @@ class PowerPointTarget:
                 attached = bool(self.user32.AttachThreadInput(cur_thread, target_thread, True))
 
             try:
-                # Unlock SetForegroundWindow if needed using ALT keystroke simulation
                 try:
-                    self.user32.keybd_event(0x12, 0, 0, 0)      # ALT down
-                    self.user32.keybd_event(0x12, 0, 2, 0)      # ALT up
+                    self.user32.keybd_event(0x12, 0, 0, 0)
+                    self.user32.keybd_event(0x12, 0, 2, 0)
                 except Exception:
                     pass
 
                 self.user32.BringWindowToTop(hwnd)
                 self.user32.SetForegroundWindow(hwnd)
-                self.user32.ShowWindow(hwnd, 5)  # 5 = SW_SHOW
+                self.user32.ShowWindow(hwnd, 5)
             finally:
                 if attached:
                     self.user32.AttachThreadInput(cur_thread, target_thread, False)
@@ -183,7 +176,6 @@ class PowerPointTarget:
             self.last_error = msg
             return False, msg
 
-        # Ensure PyAutoGUI fail-safe propagates directly
         try:
             if direction.upper() in ("RIGHT", "SWIPE RIGHT"):
                 try:

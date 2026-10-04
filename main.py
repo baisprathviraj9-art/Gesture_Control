@@ -179,7 +179,6 @@ class PalmSwipeDetector:
         self.debug_direction: str = ""
         self.debug_speed: float = 0.0
 
-        # Diagnostics & Return-stroke suppression tracking
         self.suppression_reason: str = ""
         self.intended_target: str = ""
         self.last_dispatched_action: str = ""
@@ -190,8 +189,7 @@ class PalmSwipeDetector:
         self.has_settled_after_swipe: bool = True
         self.last_frame_time: float = 0.0
 
-        # Screenshot coordination & 5-finger palm confirmation
-        self.swipe_resume_confirm_time: float = 0.12  # ~120 ms required before resuming swipes
+        self.swipe_resume_confirm_time: float = 0.12
         self.screenshot_suppression: bool = False
         self.resume_confirm_start_time: float | None = None
         self.is_valid_swipe_palm: bool = False
@@ -217,7 +215,6 @@ class PalmSwipeDetector:
         ss_pose = is_three_finger_screenshot_pose(hand_landmarks)
         is_ss = screenshot_active or ss_pose
 
-        # Priority 1: Screenshot Recognition Explicit Priority
         if is_ss:
             self.screenshot_suppression = True
             self.resume_confirm_start_time = None
@@ -228,7 +225,6 @@ class PalmSwipeDetector:
             self.state = GestureState.TRACKING
             return self.state
 
-        # Priority 1b: Resuming from screenshot mode requires 100-150ms continuous 5-finger palm confirmation
         if self.screenshot_suppression:
             if not is_valid_palm:
                 self.resume_confirm_start_time = None
@@ -252,13 +248,11 @@ class PalmSwipeDetector:
                 self.state = GestureState.TRACKING
                 return self.state
 
-            # Confirmed! Reset screenshot suppression and begin fresh history
             self.screenshot_suppression = False
             self.resume_confirm_start_time = None
             self.palm_history.clear()
             self.suppression_reason = ""
 
-        # Trace gesture suppression for active mouse controller
         mouse_suppressed = False
         if active_mouse_mode in ("CURSOR", "SCROLL"):
             mouse_suppressed = True
@@ -303,7 +297,6 @@ class PalmSwipeDetector:
                 self.reset()
                 self.state = GestureState.TRACKING
 
-        # Requirement 2: Require a true open palm for ordinary swipes
         if not is_valid_palm:
             self.reset()
             self.suppression_reason = "Hand not open palm (5 fingers required)"
@@ -336,7 +329,6 @@ class PalmSwipeDetector:
         self.debug_direction = result["direction"]
         self.debug_speed = result["speed"]
 
-        # Track hand settling (stationary or low velocity)
         if result["speed"] < self.min_velocity or (
             abs(result["dx"]) < self.swipe_threshold / 2 and abs(result["dy"]) < self.swipe_threshold / 2
         ):
@@ -345,8 +337,6 @@ class PalmSwipeDetector:
         if result["direction"]:
             swipe_name = result["direction"]
 
-            # Re-check 5-finger palm pose before dispatching action:
-            # "Apply this check before collecting swipe movement history and again before dispatching an action."
             if not is_swipe_palm_pose(hand_landmarks) or is_three_finger_screenshot_pose(hand_landmarks) or screenshot_active:
                 self.suppression_reason = "Pose invalidated before swipe dispatch"
                 self.palm_history.clear()
@@ -356,10 +346,6 @@ class PalmSwipeDetector:
             hist_start_x, hist_start_y, _ = self.palm_history[0]
             hist_end_x, hist_end_y, _ = self.palm_history[-1]
 
-            # Return-stroke check:
-            # If the swipe is opposite to the last dispatched swipe, and occurred within
-            # 1.2s originating from where the last swipe ended without the hand settling,
-            # reject it as an unintended return stroke.
             is_opposite = (
                 (self.last_dispatched_direction == GestureState.SWIPE_RIGHT and swipe_name == GestureState.SWIPE_LEFT)
                 or (self.last_dispatched_direction == GestureState.SWIPE_LEFT and swipe_name == GestureState.SWIPE_RIGHT)
@@ -382,7 +368,6 @@ class PalmSwipeDetector:
                 self.state = GestureState.TRACKING
                 return self.state
 
-            # Query intended target
             if self.target_mode_powerpoint:
                 ppt = self.powerpoint_target or PowerPointTarget()
                 hwnd, ttype = ppt.find_presentation_window()
@@ -994,7 +979,6 @@ def main():
                     scrolled = False
                     state_label = screenshot_ctrl.get_hud_label()
 
-                    # Highlight the three tracked fingertips (Index 8, Middle 12, Ring 16)
                     tip8 = hand_landmarks[8]
                     tip12 = hand_landmarks[12]
                     tip16 = hand_landmarks[16]
@@ -1016,7 +1000,6 @@ def main():
                         hand_landmarks, timestamp=now_mono
                     )
                     if clicked or scrolled:
-                        # Ensure only one gesture action is dispatched in this camera frame
                         detector.reset()
                     state_label = detector.update(
                         hand_landmarks,

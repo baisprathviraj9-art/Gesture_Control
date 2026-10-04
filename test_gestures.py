@@ -438,10 +438,6 @@ class TestCursorModeTransition:
         mock_action.assert_called_once_with(GestureState.SWIPE_RIGHT)
 
 
-# =============================================================================
-# PowerPoint Targeting, Navigation, and Full Verification Tests
-# =============================================================================
-
 import ctypes
 from powerpoint_target import PowerPointTarget
 from main import perform_gesture_action, TARGET_MODE_POWERPOINT
@@ -452,7 +448,6 @@ class MockUser32:
     """Mock for Windows user32 library providing full control over window state."""
 
     def __init__(self, windows=None, fg_hwnd=0):
-        # windows is a list of tuples: (hwnd, class_name, title, is_visible)
         self.windows = windows or []
         self._fg_hwnd = fg_hwnd
         self.attached_threads = []
@@ -592,7 +587,6 @@ class TestPowerPointTargeting:
             windows=[(ppt_hwnd, "screenClass", "PowerPoint Slide Show - Deck", True)],
             fg_hwnd=999,
         )
-        # Force SetForegroundWindow to fail
         user32.SetForegroundWindow = MagicMock(return_value=0)
         target = PowerPointTarget(user32_module=user32)
         focused = target.focus_presentation(ppt_hwnd)
@@ -773,7 +767,6 @@ class TestPresentationModeAndGestureSuppression:
         ppt = PowerPointTarget(pyautogui_module=mock_pag, user32_module=user32)
         detector = PalmSwipeDetector(powerpoint_target=ppt, target_mode_powerpoint=True)
 
-        # 10 continuous frames of rightward movement
         _run_swipe(detector, 0.2, 0.5, 0.8, 0.5, 10, 0.033, mock_time, 1000.0)
         assert mock_pag.press.call_count == 1
 
@@ -788,13 +781,9 @@ class TestPresentationModeAndGestureSuppression:
         ppt = PowerPointTarget(pyautogui_module=mock_pag, user32_module=user32)
         detector = PalmSwipeDetector(powerpoint_target=ppt, target_mode_powerpoint=True)
 
-        # 1. Swipe Right
         _run_swipe(detector, 0.3, 0.5, 0.45, 0.5, 5, 0.033, mock_time, 1000.0)
         assert mock_pag.press.call_count == 1
 
-        # 2. Return stroke moving Left at t=1000.75 (post-cooldown continuous return)
         states_return, _ = _run_swipe(detector, 0.45, 0.5, 0.3, 0.5, 5, 0.033, mock_time, 1000.75)
-        # Return stroke must be rejected
         assert mock_pag.press.call_count == 1
         assert "Opposite return stroke suppressed" in detector.suppression_reason
-

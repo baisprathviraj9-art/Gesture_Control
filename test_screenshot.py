@@ -112,10 +112,10 @@ def make_hand(
     lms[0] = FakeLandmark(wrist_x, wrist_y)
 
     mcp_y = wrist_y - 0.20
-    lms[5] = FakeLandmark(wrist_x - 0.06, mcp_y)   # Index MCP
-    lms[9] = FakeLandmark(wrist_x - 0.02, mcp_y)   # Middle MCP
-    lms[13] = FakeLandmark(wrist_x + 0.02, mcp_y)  # Ring MCP
-    lms[17] = FakeLandmark(wrist_x + 0.06, mcp_y)  # Pinky MCP
+    lms[5] = FakeLandmark(wrist_x - 0.06, mcp_y)
+    lms[9] = FakeLandmark(wrist_x - 0.02, mcp_y)
+    lms[13] = FakeLandmark(wrist_x + 0.02, mcp_y)
+    lms[17] = FakeLandmark(wrist_x + 0.06, mcp_y)
 
     def set_finger(tip_idx, pip_idx, base_x, is_ext):
         if is_ext:
@@ -132,7 +132,6 @@ def make_hand(
     set_finger(16, 14, wrist_x + 0.02, ring_extended)
     set_finger(20, 18, wrist_x + 0.06, pinky_extended)
 
-    # Thumb
     if thumb_raised:
         tx, ty = wrist_x - 0.16, mcp_y
     else:
@@ -215,10 +214,6 @@ class MockPyAutoGUI:
         return img
 
 
-# =============================================================================
-# 1. Three-Finger Pose Recognition Tests
-# =============================================================================
-
 class TestThreeFingerPoseRecognition:
     """Tests for recognizing Index+Middle+Ring extended with Pinky folded."""
 
@@ -250,27 +245,21 @@ class TestThreeFingerPoseRecognition:
         assert is_three_finger_screenshot_pose(hand_thumb_raised) is True
 
     def test_invalid_finger_combinations_rejected(self):
-        # Open palm (all 4 extended)
         open_palm = make_hand(True, True, True, True)
         assert is_three_finger_screenshot_pose(open_palm) is False
 
-        # Fist (all 4 folded)
         fist = make_hand(False, False, False, False)
         assert is_three_finger_screenshot_pose(fist) is False
 
-        # Pointing (only index extended)
         pointing = make_hand(True, False, False, False)
         assert is_three_finger_screenshot_pose(pointing) is False
 
-        # Scrolling (index + middle extended, ring folded)
         scrolling = make_hand(True, True, False, False)
         assert is_three_finger_screenshot_pose(scrolling) is False
 
-        # Index folded, middle and ring extended
         no_index = make_hand(False, True, True, False)
         assert is_three_finger_screenshot_pose(no_index) is False
 
-        # Ring folded, pinky extended
         pinky_ext = make_hand(True, True, False, True)
         assert is_three_finger_screenshot_pose(pinky_ext) is False
 
@@ -283,10 +272,6 @@ class TestThreeFingerPoseRecognition:
         assert math.isclose(cy, expected_y, rel_tol=1e-5)
 
 
-# =============================================================================
-# 2. Pose Confirmation and Stationary Pose Handling
-# =============================================================================
-
 class TestPoseConfirmationAndStationaryPose:
     """Verifies ~120 ms confirmation requirement and stationary rejection."""
 
@@ -295,18 +280,15 @@ class TestPoseConfirmationAndStationaryPose:
         ctrl = ScreenshotController(pyautogui_module=pag)
         hand = make_three_finger_pose()
 
-        # Frame 0: t=1.0 -> Starts CONFIRMING
         state = ctrl.update(hand, timestamp=1.000)
         assert state == ScreenshotState.CONFIRMING
         assert ctrl.is_candidate is True
         assert pag.screenshot_call_count == 0
 
-        # Frame 1: t=1.060 (60 ms elapsed, less than 120 ms) -> Still CONFIRMING
         state = ctrl.update(hand, timestamp=1.060)
         assert state == ScreenshotState.CONFIRMING
         assert pag.screenshot_call_count == 0
 
-        # Frame 2: t=1.121 (121 ms elapsed) -> Transits to TRACKING_STROKE
         state = ctrl.update(hand, timestamp=1.121)
         assert state == ScreenshotState.TRACKING_STROKE
         assert pag.screenshot_call_count == 0
@@ -317,7 +299,6 @@ class TestPoseConfirmationAndStationaryPose:
         hand = make_three_finger_pose()
 
         t = 1.000
-        # Hold stationary pose for 2 full seconds
         for _ in range(60):
             ctrl.update(hand, timestamp=t)
             t += 0.033
@@ -326,10 +307,6 @@ class TestPoseConfirmationAndStationaryPose:
         assert ctrl.state == ScreenshotState.TRACKING_STROKE
         assert ctrl.downward_displacement < SCREENSHOT_MIN_DOWNWARD_DISPLACEMENT
 
-
-# =============================================================================
-# 3. Deliberate Downward Movement Recognition Tests
-# =============================================================================
 
 class TestDownwardMovementRecognition:
     """Tests downward stroke classification and rejection of invalid movements."""
@@ -343,15 +320,11 @@ class TestDownwardMovementRecognition:
         base_hand = make_three_finger_pose()
 
         t = 1.000
-        # 1. Confirm pose for 150 ms
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
         assert ctrl.state == ScreenshotState.TRACKING_STROKE
 
-        # 2. Perform downward stroke (increasing Y by 0.15 over 0.3s)
-        # dy = 0.15 >= 0.12, dx = 0.01 (vert dominance 0.15 >= 1.5 * 0.01 = 0.015)
-        # velocity = 0.15 / 0.3 = 0.50 u/s >= 0.25
         num_steps = 10
         total_dy = 0.15
         total_dx = 0.01
@@ -372,12 +345,10 @@ class TestDownwardMovementRecognition:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Confirm pose
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
 
-        # Move hand upward (dy = -0.15, decreasing Y)
         for i in range(1, 10):
             moved_hand = translate_hand(base_hand, dx=0.0, dy=-0.015 * i)
             ctrl.update(moved_hand, timestamp=t + (i * 0.030))
@@ -391,12 +362,10 @@ class TestDownwardMovementRecognition:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Confirm pose
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
 
-        # Move hand downward by only 0.06 (threshold is 0.12)
         for i in range(1, 10):
             moved_hand = translate_hand(base_hand, dx=0.0, dy=0.006 * i)
             ctrl.update(moved_hand, timestamp=t + (i * 0.030))
@@ -410,13 +379,10 @@ class TestDownwardMovementRecognition:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Confirm pose
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
 
-        # Move hand downward very slowly (dy = 0.13 over 2.0 seconds -> vel = 0.065 < 0.25)
-        # Also positions older than 0.8s will be pruned!
         for i in range(1, 60):
             moved_hand = translate_hand(base_hand, dx=0.0, dy=0.0022 * i)
             ctrl.update(moved_hand, timestamp=t + (i * 0.033))
@@ -429,12 +395,10 @@ class TestDownwardMovementRecognition:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Confirm pose
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
 
-        # Horizontal movement: dx = 0.20, dy = 0.05 (fails vertical dominance ratio)
         for i in range(1, 10):
             moved_hand = translate_hand(base_hand, dx=0.02 * i, dy=0.005 * i)
             ctrl.update(moved_hand, timestamp=t + (i * 0.030))
@@ -447,12 +411,10 @@ class TestDownwardMovementRecognition:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Confirm pose
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
 
-        # 45 degree diagonal: dx = 0.14, dy = 0.14 -> dy < 1.5 * dx (0.14 < 0.21)
         for i in range(1, 10):
             moved_hand = translate_hand(base_hand, dx=0.014 * i, dy=0.014 * i)
             ctrl.update(moved_hand, timestamp=t + (i * 0.030))
@@ -465,26 +427,17 @@ class TestDownwardMovementRecognition:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Confirm pose
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
 
-        # Move hand slightly upward first (raising hand to start stroke)
         ctrl.update(translate_hand(base_hand, 0, -0.05), timestamp=t + 0.030)
-        # Apex is now at y - 0.05
 
-        # Now slide sharply downward from the apex by 0.14
         ctrl.update(translate_hand(base_hand, 0, +0.09), timestamp=t + 0.200)
 
-        # Downward displacement from apex = 0.09 - (-0.05) = 0.14 >= 0.12!
         assert pag.screenshot_call_count == 1
         assert ctrl.state == ScreenshotState.CAPTURED
 
-
-# =============================================================================
-# 4. Duplicate and Accidental Capture Prevention Tests
-# =============================================================================
 
 class TestDuplicateAndAccidentalCaptures:
     """Verifies latching, deliberate release (~150 ms), and tracking loss handling."""
@@ -495,7 +448,6 @@ class TestDuplicateAndAccidentalCaptures:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Confirm and downward swipe
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
@@ -505,7 +457,6 @@ class TestDuplicateAndAccidentalCaptures:
         assert pag.screenshot_call_count == 1
         assert ctrl.state == ScreenshotState.CAPTURED
 
-        # Return hand upward while still in 3-finger pose
         t_after = t + 0.35
         for i in range(1, 15):
             ctrl.update(translate_hand(base_hand, 0, 0.15 - 0.015 * i), timestamp=t_after + (i * 0.030))
@@ -518,7 +469,6 @@ class TestDuplicateAndAccidentalCaptures:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # 1. First capture
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
@@ -527,16 +477,14 @@ class TestDuplicateAndAccidentalCaptures:
         assert pag.screenshot_call_count == 1
         assert ctrl.state == ScreenshotState.CAPTURED
 
-        # 2. Deliberate release: open palm for 160 ms (>= 150 ms)
         t_rel = t + 0.35
         open_palm = make_hand(True, True, True, True)
         ctrl.update(open_palm, timestamp=t_rel)
-        assert ctrl.state == ScreenshotState.CAPTURED  # Just started release timer
+        assert ctrl.state == ScreenshotState.CAPTURED
 
         ctrl.update(open_palm, timestamp=t_rel + 0.160)
         assert ctrl.state == ScreenshotState.READY
 
-        # 3. Form 3-finger pose again and perform second downward stroke
         t2 = t_rel + 0.200
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t2)
@@ -560,15 +508,13 @@ class TestDuplicateAndAccidentalCaptures:
             ctrl.update(translate_hand(base_hand, 0, 0.015 * i), timestamp=t + (i * 0.030))
         assert ctrl.state == ScreenshotState.CAPTURED
 
-        # Hand briefly flickers out of pose for only 80 ms then returns
         open_palm = make_hand(True, True, True, True)
         t_flicker = t + 0.35
         ctrl.update(open_palm, timestamp=t_flicker)
         ctrl.update(open_palm, timestamp=t_flicker + 0.080)
-        # Return to 3-finger pose
         ctrl.update(base_hand, timestamp=t_flicker + 0.100)
 
-        assert ctrl.state == ScreenshotState.CAPTURED  # Did not rearm!
+        assert ctrl.state == ScreenshotState.CAPTURED
 
     def test_missing_tracking_alone_does_not_count_as_deliberate_release(self):
         pag = MockPyAutoGUI()
@@ -583,12 +529,10 @@ class TestDuplicateAndAccidentalCaptures:
             ctrl.update(translate_hand(base_hand, 0, 0.015 * i), timestamp=t + (i * 0.030))
         assert ctrl.state == ScreenshotState.CAPTURED
 
-        # Tracking disappears for 3 seconds
         ctrl.update(None, timestamp=t + 1.0)
         ctrl.update(None, timestamp=t + 2.0)
         ctrl.update(None, timestamp=t + 3.0)
 
-        # Still in CAPTURED! Missing tracking alone does NOT rearm
         assert ctrl.state == ScreenshotState.CAPTURED
 
     def test_tracking_gap_clears_pending_movement_and_does_not_bridge(self):
@@ -597,20 +541,16 @@ class TestDuplicateAndAccidentalCaptures:
         base_hand = make_three_finger_pose()
 
         t = 1.0
-        # Pose confirmed, moved halfway down
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
         ctrl.update(translate_hand(base_hand, 0, 0.07), timestamp=t + 0.030)
         assert ctrl.state == ScreenshotState.TRACKING_STROKE
 
-        # Tracking gap occurs
         ctrl.update(None, timestamp=t + 0.060)
         assert ctrl.state == ScreenshotState.READY
         assert len(ctrl.stroke_history) == 0
 
-        # Hand reappears further down (0.14)
-        # This must NOT combine with the pre-gap position to trigger capture!
         ctrl.update(translate_hand(base_hand, 0, 0.14), timestamp=t + 0.090)
         assert pag.screenshot_call_count == 0
         assert ctrl.state == ScreenshotState.CONFIRMING
@@ -626,7 +566,6 @@ class TestDuplicateAndAccidentalCaptures:
             t += 0.030
         assert ctrl.state == ScreenshotState.TRACKING_STROKE
 
-        # Fold ring finger (breaks pose to scroll gesture)
         scroll_hand = make_hand(True, True, False, False)
         ctrl.update(scroll_hand, timestamp=t + 0.030)
 
@@ -634,10 +573,6 @@ class TestDuplicateAndAccidentalCaptures:
         assert pag.screenshot_call_count == 0
         assert len(ctrl.stroke_history) == 0
 
-
-# =============================================================================
-# 5. Gesture Priority and Suppression Tests
-# =============================================================================
 
 def make_mock_mouse_pag():
     mock_pag = MagicMock()
@@ -651,12 +586,10 @@ class TestGesturePriorityAndSuppression:
 
     def test_three_finger_pose_suppresses_scroll_candidate_and_mode(self):
         hand = make_three_finger_pose()
-        # Ring is extended and pinky is folded
         assert is_scroll_candidate(hand) is False
         assert is_mouse_mode_candidate(hand) is False
         assert is_scroll_pose(hand) is False
 
-        # MouseController process_landmarks returns IDLE
         mouse_ctrl = MouseController(pyautogui_module=make_mock_mouse_pag())
         mode, clicked, scroll_val, scrolled = mouse_ctrl.process_landmarks(hand, timestamp=1.0)
         assert mode == "IDLE"
@@ -668,7 +601,6 @@ class TestGesturePriorityAndSuppression:
         detector = PalmSwipeDetector()
         hand = make_three_finger_pose()
 
-        # Update detector with 3-finger screenshot pose
         state = detector.update(hand, active_mouse_mode="IDLE")
         assert detector.suppression_reason == "Screenshot Gesture Candidate"
         assert len(detector.palm_history) == 0
@@ -677,7 +609,6 @@ class TestGesturePriorityAndSuppression:
         detector = PalmSwipeDetector()
         open_palm = make_hand(True, True, True, True, thumb_raised=True)
 
-        # Build some open-palm history
         t = 1.0
         with patch("main.time.time", side_effect=lambda: t):
             for _ in range(3):
@@ -685,34 +616,28 @@ class TestGesturePriorityAndSuppression:
                 t += 0.030
             assert len(detector.palm_history) > 0
 
-            # Form 3-finger screenshot pose -> history cleared
             ss_hand = make_three_finger_pose()
             detector.update(ss_hand, active_mouse_mode="IDLE")
             assert len(detector.palm_history) == 0
             assert detector.screenshot_suppression is True
 
-            # End screenshot pose back to open palm -> requires 120ms confirmation
             detector.update(open_palm, active_mouse_mode="IDLE")
             assert len(detector.palm_history) == 0
 
-            # Advance past confirmation interval -> fresh history begins
             t += 0.15
             detector.update(open_palm, active_mouse_mode="IDLE")
             assert len(detector.palm_history) == 1
 
     def test_controls_restore_after_screenshot_cancellation(self):
         mouse_ctrl = MouseController(pyautogui_module=make_mock_mouse_pag())
-        # Normal pointing pose
         pointing = make_hand(True, False, False, False)
         mode, _, _, _ = mouse_ctrl.process_landmarks(pointing, timestamp=1.0)
         assert mode == "CURSOR"
 
-        # Interrupt with 3-finger pose
         ss_hand = make_three_finger_pose()
         mode, _, _, _ = mouse_ctrl.process_landmarks(ss_hand, timestamp=1.033)
         assert mode == "IDLE"
 
-        # Restore pointing pose
         mode, _, _, _ = mouse_ctrl.process_landmarks(pointing, timestamp=1.066)
         assert mode == "CURSOR"
 
@@ -727,15 +652,10 @@ class TestGesturePriorityAndSuppression:
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
 
-        # Perform downward stroke -> should propagate FailSafeException
         with pytest.raises(pyautogui.FailSafeException):
             for i in range(1, 10):
                 ctrl.update(translate_hand(base_hand, 0, 0.015 * i), timestamp=t + (i * 0.030))
 
-
-# =============================================================================
-# 6. Capture, Save, and Feedback Tests
-# =============================================================================
 
 class TestCaptureSaveAndFeedback:
     """Verifies file saving, error handling, and HUD display."""
@@ -766,7 +686,6 @@ class TestCaptureSaveAndFeedback:
 
     def test_save_failure_produces_no_false_success_notification(self):
         pag = MockPyAutoGUI()
-        # Mock image save method raises IOError
         def broken_save(filepath, format="PNG"):
             raise IOError("Disk full")
 
@@ -786,7 +705,6 @@ class TestCaptureSaveAndFeedback:
         for i in range(1, 10):
             ctrl.update(translate_hand(base_hand, 0, 0.015 * i), timestamp=t + (i * 0.030))
 
-        # Status must indicate failure, NOT false success
         assert ctrl.status_success is False
         assert "Screenshot failed" in ctrl.status_message
         assert ctrl.feedback_success is False
@@ -803,7 +721,6 @@ class TestCaptureSaveAndFeedback:
         detector = PalmSwipeDetector()
         frame = np.zeros((700, 1000, 3), dtype=np.uint8)
 
-        # Call draw_hud with screenshot_ctrl
         draw_hud(
             frame,
             detector,
@@ -814,7 +731,6 @@ class TestCaptureSaveAndFeedback:
             now_mono=1.0,
         )
 
-        # Simulate completed capture and verify success feedback rendering
         ctrl.status_message = "Screenshot saved: screenshot_test.png"
         ctrl.status_time = 2.0
         ctrl.status_success = True
@@ -828,13 +744,8 @@ class TestCaptureSaveAndFeedback:
             fps=30.0,
             now_mono=2.1,
         )
-        # Should execute without errors and produce feedback
         assert ctrl.get_feedback(2.1)[0] == "Screenshot saved: screenshot_test.png"
 
-
-# =============================================================================
-# 7. Desktop Visual Feedback Tests (Flash Animation & Notification Overlay)
-# =============================================================================
 
 class MockDesktopOverlayManager:
     """Mock overlay manager tracking show_success and show_error calls without opening windows."""
@@ -891,7 +802,6 @@ class TestDesktopVisualFeedback:
         assert len(mock_overlay.call_log) == 1
         call_type, filename, overlay_time = mock_overlay.call_log[0]
         assert call_type == "SUCCESS"
-        # Screenshot and save happened strictly before or at the moment show_success was dispatched
         assert pag.last_mock_image is not None
         assert pag.last_mock_image.save_time is not None
         assert pag.last_mock_image.save_time <= overlay_time
@@ -945,7 +855,6 @@ class TestDesktopVisualFeedback:
         for i in range(1, 10):
             ctrl.update(translate_hand(base_hand, 0, 0.015 * i), timestamp=t + (i * 0.030))
 
-        # Failed capture must trigger error notification, NOT success flash
         assert mock_overlay.last_triggered_type == "ERROR"
         assert mock_overlay.flash_trigger_count == 0
         assert mock_overlay.notification_trigger_count == 1
@@ -978,7 +887,6 @@ class TestDesktopVisualFeedback:
         for i in range(1, 10):
             ctrl.update(translate_hand(base_hand, 0, 0.015 * i), timestamp=t + (i * 0.030))
 
-        # Flash was disabled, notification was enabled
         assert mock_overlay.flash_trigger_count == 0
         assert mock_overlay.notification_trigger_count == 1
 
@@ -1002,7 +910,6 @@ class TestDesktopVisualFeedback:
         for _ in range(5):
             ctrl.update(base_hand, timestamp=t)
             t += 0.030
-        # Performing stroke must complete without unhandled exception
         for i in range(1, 10):
             ctrl.update(translate_hand(base_hand, 0, 0.015 * i), timestamp=t + (i * 0.030))
 
@@ -1045,7 +952,6 @@ class TestScreenshotSwipeConflictResolution:
         t = 1.0
 
         with patch("main.time.time", side_effect=lambda: t):
-            # Pose confirmation (~120ms)
             for _ in range(5):
                 ctrl.update(base_hand, timestamp=t)
                 state = detector.update(base_hand, active_mouse_mode="IDLE", screenshot_active=ctrl.is_suppressing_swipes)
@@ -1053,7 +959,6 @@ class TestScreenshotSwipeConflictResolution:
                 assert len(detector.palm_history) == 0
                 t += 0.030
 
-            # Downward stroke (increasing Y)
             for i in range(1, 10):
                 moved = translate_hand(base_hand, 0.0, 0.02 * i)
                 ctrl.update(moved, timestamp=t)
@@ -1061,7 +966,6 @@ class TestScreenshotSwipeConflictResolution:
                 assert len(detector.palm_history) == 0
                 t += 0.030
 
-            # Verify capture occurred once and no swipe action was dispatched
             assert pag.screenshot_call_count == 1
             assert ctrl.state == ScreenshotState.CAPTURED
             mock_action.assert_not_called()
@@ -1079,13 +983,11 @@ class TestScreenshotSwipeConflictResolution:
         t = 1.0
 
         with patch("main.time.time", side_effect=lambda: t):
-            # Hold pose for confirmation
             for _ in range(5):
                 ctrl.update(base_hand, timestamp=t)
                 detector.update(base_hand, active_mouse_mode="IDLE", screenshot_active=ctrl.is_suppressing_swipes)
                 t += 0.030
 
-            # Move upward (decreasing Y)
             for i in range(1, 10):
                 moved = translate_hand(base_hand, 0.0, -0.025 * i)
                 ctrl.update(moved, timestamp=t)
@@ -1119,7 +1021,6 @@ class TestScreenshotSwipeConflictResolution:
     def test_folded_thumb_rejects_ordinary_swipes(self, mock_action):
         """Fingers extended but thumb resting against palm must be rejected from ordinary swipes."""
         detector = PalmSwipeDetector()
-        # Hand with 4 fingers extended, thumb lowered/resting (thumb_raised=False)
         hand_thumb_folded = make_hand(
             index_extended=True,
             middle_extended=True,
@@ -1144,7 +1045,6 @@ class TestScreenshotSwipeConflictResolution:
     def test_folded_pinky_rejects_ordinary_swipes(self, mock_action):
         """Fingers extended with pinky folded must be rejected from ordinary swipes."""
         detector = PalmSwipeDetector()
-        # Index, middle, ring extended, thumb raised, pinky folded
         hand_pinky_folded = make_hand(
             index_extended=True,
             middle_extended=True,
@@ -1214,14 +1114,12 @@ class TestScreenshotSwipeConflictResolution:
         t = 1.0
 
         with patch("main.time.time", side_effect=lambda: t):
-            # 1. Partial downward stroke (cancellation before threshold)
             for i in range(3):
                 moved = translate_hand(ss_hand, 0.0, 0.02 * i)
                 ctrl.update(moved, timestamp=t)
                 detector.update(moved, active_mouse_mode="IDLE", screenshot_active=ctrl.is_suppressing_swipes)
                 t += 0.030
 
-            # Hand moves back up -> cancels stroke
             for i in range(3):
                 moved = translate_hand(ss_hand, 0.0, -0.03 * i)
                 ctrl.update(moved, timestamp=t)
@@ -1231,7 +1129,6 @@ class TestScreenshotSwipeConflictResolution:
             assert len(detector.palm_history) == 0
             mock_action.assert_not_called()
 
-            # 2. Now complete deliberate downward stroke -> CAPTURED
             for _ in range(5):
                 ctrl.update(ss_hand, timestamp=t)
                 detector.update(ss_hand, active_mouse_mode="IDLE", screenshot_active=ctrl.is_suppressing_swipes)
@@ -1247,14 +1144,12 @@ class TestScreenshotSwipeConflictResolution:
             assert pag.screenshot_call_count == 1
             mock_action.assert_not_called()
 
-            # 3. Upward return stroke while releasing pose
             for i in range(1, 10):
                 moved = translate_hand(ss_hand, 0.0, -0.025 * i)
                 ctrl.update(moved, timestamp=t)
                 detector.update(moved, active_mouse_mode="IDLE", screenshot_active=ctrl.is_suppressing_swipes)
                 t += 0.030
 
-            # Ensure upward motion did not trigger SWIPE_UP
             mock_action.assert_not_called()
             assert detector.last_detected_gesture == ""
 
@@ -1267,27 +1162,22 @@ class TestScreenshotSwipeConflictResolution:
 
         t = 1.0
         with patch("main.time.time", side_effect=lambda: t):
-            # Screenshot pose suppresses swipes
             detector.update(ss_hand, active_mouse_mode="IDLE", screenshot_active=True)
             assert detector.screenshot_suppression is True
 
-            # Frame 1 returning to 5-finger open palm: confirmation window, no history yet
             detector.update(open_palm, active_mouse_mode="IDLE", screenshot_active=False)
             assert len(detector.palm_history) == 0
             assert "Confirming 5-finger palm" in detector.suppression_reason
 
-            # Frame 2 (60 ms later): still confirming
             t += 0.060
             detector.update(open_palm, active_mouse_mode="IDLE", screenshot_active=False)
             assert len(detector.palm_history) == 0
 
-            # Frame 3 (> 120 ms later): confirmation complete -> fresh history begins!
             t += 0.070
             detector.update(open_palm, active_mouse_mode="IDLE", screenshot_active=False)
             assert len(detector.palm_history) == 1
             assert detector.screenshot_suppression is False
 
-            # Now swipe right with fresh movement
             for i in range(1, 6):
                 t += 0.030
                 moved = translate_hand(open_palm, 0.035 * i, 0.0)
@@ -1303,7 +1193,6 @@ class TestScreenshotSwipeConflictResolution:
         detector = PalmSwipeDetector()
         ss_hand = make_three_finger_pose()
 
-        # Update with IDLE mouse mode: 3-finger pose must still suppress swipes
         state = detector.update(ss_hand, active_mouse_mode="IDLE", screenshot_active=False)
         assert detector.screenshot_suppression is True
         assert "Screenshot Gesture Candidate" in detector.suppression_reason
@@ -1320,7 +1209,6 @@ class TestScreenshotSwipeConflictResolution:
 
         draw_hud(frame, detector, "Waiting for hand...", mouse_ctrl=None, screenshot_ctrl=None, fps=30.0)
 
-        # Ensure frame modified and contains non-black drawn pixels
         assert np.any(frame > 0)
         assert detector.suppression_reason == "Screenshot Gesture Candidate"
         assert detector.last_dispatched_action == "RIGHT -> next"

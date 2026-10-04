@@ -276,7 +276,6 @@ DEFAULT_PINCH_CONTACT_JITTER_TIME = 0.06
 DEFAULT_PINCH_CONTACT_JITTER_MARGIN = 0.03
 
 
-
 def get_right_click_pose_status(hand_landmarks) -> tuple[bool, str]:
     """
     Evaluates whether hand forms the thumb-to-middle right-click pose and returns
@@ -397,7 +396,6 @@ def is_swipe_palm_pose(hand_landmarks) -> bool:
     if hand_landmarks is None or len(hand_landmarks) < 21:
         return False
 
-    # Reject 3-finger screenshot pose immediately
     if is_three_finger_screenshot_pose(hand_landmarks):
         return False
 
@@ -415,7 +413,6 @@ def is_swipe_palm_pose(hand_landmarks) -> bool:
         pip_to_mcp = _euclidean_dist(hand_landmarks[pip_idx], hand_landmarks[mcp_idx])
         return (tip_dist > pip_dist) and (pip_dist > mcp_dist * 0.9) and (tip_to_mcp > pip_to_mcp)
 
-    # 1. Four fingers (Index 8, Middle 12, Ring 16, Pinky 20) must be extended
     if not (
         _finger_extended(8, 6, 5)
         and _finger_extended(12, 10, 9)
@@ -424,7 +421,6 @@ def is_swipe_palm_pose(hand_landmarks) -> bool:
     ):
         return False
 
-    # 2. Strict Pinky Extension (explicitly not folded into palm)
     pky_tip_dist = _euclidean_dist(hand_landmarks[20], wrist)
     pky_pip_dist = _euclidean_dist(hand_landmarks[18], wrist)
     pky_tip_to_mcp = _euclidean_dist(hand_landmarks[20], hand_landmarks[17])
@@ -432,7 +428,6 @@ def is_swipe_palm_pose(hand_landmarks) -> bool:
     if (pky_tip_dist <= pky_pip_dist) or (pky_tip_to_mcp <= pky_pip_to_mcp):
         return False
 
-    # 3. Strict Thumb Open/Extended (explicitly not resting against palm or lowered)
     if is_thumb_lowered(hand_landmarks):
         return False
 
@@ -879,7 +874,6 @@ class RightClickController:
             freeze = ratio <= self.approach_threshold or raw_ratio <= self.approach_threshold
             return False, freeze
 
-        # Both current valid measurement and filtered distance must support contact
         is_contact = (ratio <= self.contact_threshold) and (raw_ratio <= self.contact_threshold)
 
         if self.state == "confirming":
@@ -889,7 +883,6 @@ class RightClickController:
                 self._clear_contact()
                 self.state = "armed"
             elif not is_contact and max(ratio, raw_ratio) <= self.contact_jitter_threshold:
-                # A borderline sample pauses the timer; it never counts as contact.
                 if self.contact_jitter_start_time is None:
                     self.contact_jitter_start_time = now
                 self.contact_last_time = now

@@ -35,16 +35,14 @@ from desktop_overlay import (
     DEFAULT_NOTIFICATION_FADE_DURATION,
 )
 
-# Named Configuration Values
-SCREENSHOT_POSE_CONFIRM_TIME: float = 0.12        # ~120 ms stable pose required
-SCREENSHOT_MIN_DOWNWARD_DISPLACEMENT: float = 0.12  # Minimum downward movement (12% of height)
-SCREENSHOT_VERTICAL_DOMINANCE_RATIO: float = 1.5   # dy >= 1.5 * abs(dx)
-SCREENSHOT_MIN_VELOCITY: float = 0.25             # Minimum stroke velocity (normalized units/sec)
-SCREENSHOT_MAX_STROKE_DURATION: float = 0.80      # Maximum duration of a downward stroke
-SCREENSHOT_RELEASE_TIME: float = 0.15             # ~150 ms without pose required to rearm
-SCREENSHOT_FEEDBACK_DURATION: float = 2.0         # HUD notification display duration
+SCREENSHOT_POSE_CONFIRM_TIME: float = 0.12
+SCREENSHOT_MIN_DOWNWARD_DISPLACEMENT: float = 0.12
+SCREENSHOT_VERTICAL_DOMINANCE_RATIO: float = 1.5
+SCREENSHOT_MIN_VELOCITY: float = 0.25
+SCREENSHOT_MAX_STROKE_DURATION: float = 0.80
+SCREENSHOT_RELEASE_TIME: float = 0.15
+SCREENSHOT_FEEDBACK_DURATION: float = 2.0
 
-# Desktop Visual Feedback Configuration
 SCREENSHOT_FLASH_ENABLED: bool = DEFAULT_FLASH_ENABLED
 SCREENSHOT_FLASH_PEAK_OPACITY: float = DEFAULT_FLASH_PEAK_OPACITY
 SCREENSHOT_FLASH_DURATION: float = DEFAULT_FLASH_DURATION
@@ -129,16 +127,13 @@ class ScreenshotController:
         self.pose_start_time: float | None = None
         self.release_start_time: float | None = None
 
-        # Movement tracking history: deque of (x, y, timestamp)
         self.stroke_history: deque = deque()
 
-        # Metrics for telemetry & HUD
         self.current_dy: float = 0.0
         self.current_dx: float = 0.0
         self.current_velocity: float = 0.0
         self.last_tip_pos: tuple[float, float] = (0.0, 0.0)
 
-        # Status and feedback
         self.last_saved_path: str = ""
         self.status_message: str = ""
         self.status_time: float = 0.0
@@ -256,7 +251,6 @@ class ScreenshotController:
             self.last_capture_time = now
             print(f"[Screenshot] Saved: {filepath}")
 
-            # Trigger desktop flash and notification only after saving succeeds
             if self.overlay_manager is not None:
                 try:
                     self.overlay_manager.show_success(filename=filename, filepath=filepath)
@@ -274,7 +268,6 @@ class ScreenshotController:
             self.status_success = False
             print(f"[Screenshot] Error during capture/save: {exc}")
 
-            # Trigger error notification (no flash on failure)
             if self.overlay_manager is not None:
                 try:
                     self.overlay_manager.show_error(error_message=str(exc))
@@ -298,11 +291,9 @@ class ScreenshotController:
         """
         now = timestamp if timestamp is not None else time.monotonic()
 
-        # Handle tracking loss or incomplete landmarks
         if hand_landmarks is None or len(hand_landmarks) < 21:
             self.reset_stroke()
             self.pose_start_time = None
-            # Missing tracking does NOT count as deliberate release from CAPTURED
             if self.state != ScreenshotState.CAPTURED:
                 self.state = ScreenshotState.READY
             self.release_start_time = None
@@ -312,37 +303,25 @@ class ScreenshotController:
         tip_x, tip_y = get_three_fingertip_center(hand_landmarks)
         self.last_tip_pos = (tip_x, tip_y)
 
-        # ---------------------------------------------------------------------
-        # State: CAPTURED (Awaiting deliberate release before rearming)
-        # ---------------------------------------------------------------------
         if self.state == ScreenshotState.CAPTURED:
             if not is_pose:
-                # Hand is visible and has left the 3-finger pose
                 if self.release_start_time is None:
                     self.release_start_time = now
                 elif (now - self.release_start_time) >= (self.release_time - 1e-5):
-                    # Confirmed release for ~150 ms -> Rearm to READY
                     self.state = ScreenshotState.READY
                     self.release_start_time = None
                     self.pose_start_time = None
                     self.reset_stroke()
             else:
-                # Still holding the pose or moved back to it too quickly
                 self.release_start_time = None
             return self.state
 
-        # ---------------------------------------------------------------------
-        # Pose check: If 3-finger pose is not valid, reset stroke and confirmation
-        # ---------------------------------------------------------------------
         if not is_pose:
             self.reset_stroke()
             self.pose_start_time = None
             self.state = ScreenshotState.READY
             return self.state
 
-        # ---------------------------------------------------------------------
-        # Pose is valid: handle confirmation and stroke tracking
-        # ---------------------------------------------------------------------
         if self.pose_start_time is None:
             self.pose_start_time = now
             self.reset_stroke()
@@ -350,26 +329,21 @@ class ScreenshotController:
             self.state = ScreenshotState.CONFIRMING
             return self.state
 
-        # Append current position to stroke history
         self.stroke_history.append((tip_x, tip_y, now))
 
-        # Prune positions older than maximum stroke duration (0.8s)
         while self.stroke_history and (now - self.stroke_history[0][2] > self.max_stroke_duration):
             self.stroke_history.popleft()
 
-        # Check pose confirmation duration (~120 ms)
         elapsed_pose = now - self.pose_start_time
         if elapsed_pose < (self.pose_confirm_time - 1e-5):
             self.state = ScreenshotState.CONFIRMING
             return self.state
 
-        # Pose is confirmed! We are in active stroke tracking
         self.state = ScreenshotState.TRACKING_STROKE
 
         if len(self.stroke_history) < 2:
             return self.state
 
-        # Find apex (minimum Y, visually highest point) in recent stroke history
         min_idx = min(range(len(self.stroke_history)), key=lambda i: self.stroke_history[i][1])
         start_x, start_y, start_t = self.stroke_history[min_idx]
         current_x, current_y, current_t = self.stroke_history[-1]
@@ -384,18 +358,12 @@ class ScreenshotController:
         self.current_dx = dx
         self.current_velocity = velocity
 
-        # Downward stroke criteria:
-        # 1. dt > 0 and within max stroke duration
-        # 2. dy >= min_downward_displacement (default 0.12)
-        # 3. dy >= vertical_dominance_ratio * abs(dx) (default 1.5)
-        # 4. velocity >= min_velocity (default 0.25 units/sec)
         is_downward_enough = dy >= self.min_downward_displacement
         is_vertically_dominant = dy >= (self.vertical_dominance_ratio * abs(dx))
         is_fast_enough = velocity >= self.min_velocity
         is_within_time = (0.0 < dt <= self.max_stroke_duration)
 
         if is_downward_enough and is_vertically_dominant and is_fast_enough and is_within_time:
-            # Deliberate downward stroke completed -> Capture screenshot immediately!
             self._capture_and_save(now)
             self.state = ScreenshotState.CAPTURED
             self.reset_stroke()

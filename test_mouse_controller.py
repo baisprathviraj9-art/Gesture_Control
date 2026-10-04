@@ -1319,10 +1319,8 @@ class TestOpenPalmSwipeRequirements:
         with patch("main.time.time", side_effect=lambda: t):
             state = detector.update(translate_hand(open_palm, 0.15, 0.0))
             assert state == GestureState.TRACKING
-            # In confirmation window immediately upon returning from 3-finger pose
             assert len(detector.palm_history) == 0
 
-            # Advance past 120 ms confirmation window -> fresh history begins
             t += 0.15
             state = detector.update(translate_hand(open_palm, 0.16, 0.0))
             assert state == GestureState.TRACKING
@@ -1606,14 +1604,12 @@ class TestRightClickController:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arming requires 150ms of continuous separation beyond release threshold (0.35)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         assert ctrl.armed is False
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
         assert ctrl.state == "armed"
 
-        # Moving to contact
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
@@ -1623,14 +1619,12 @@ class TestRightClickController:
         assert ctrl.contact_start_time == 1.19
         mock_pag.click.assert_not_called()
 
-        # Under 200ms of contact confirmation does not click
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.30)
         assert clicked is False
         assert freeze is True
         assert ctrl.state == "confirming"
         mock_pag.click.assert_not_called()
 
-        # Reaching 200ms continuous contact confirms and fires exactly one right-click
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.41)
         assert clicked is True
         assert freeze is True
@@ -1642,19 +1636,16 @@ class TestRightClickController:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # Contact and confirm
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.41)
         assert mock_pag.click.call_count == 1
 
-        # Holding contact for sustained time does not repeat
         for t in (1.50, 1.60, 1.70, 2.0):
             clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=t)
             assert clicked is False
@@ -1667,7 +1658,6 @@ class TestRightClickController:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm and perform first click
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
@@ -1676,21 +1666,18 @@ class TestRightClickController:
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.41)
         assert mock_pag.click.call_count == 1
 
-        # Separate beyond release threshold (0.35) - requires 150ms continuous separation to rearm
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.48)
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.50)
         assert clicked is False
         assert ctrl.state == "clicked"
         assert ctrl.armed is False
 
-        # After 150ms of confirmed separation, becomes armed
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.66)
         assert clicked is False
         assert freeze is False
         assert ctrl.armed is True
         assert ctrl.state == "armed"
 
-        # Deliberate re-contact and confirmation yields second click
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.68)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.69)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.70)
@@ -1702,7 +1689,6 @@ class TestRightClickController:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Entering tracking with fingertips already close remains disarmed
         for t in (1.0, 1.05, 1.15, 1.30, 1.50):
             clicked, _ = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=t)
             assert clicked is False
@@ -1711,14 +1697,12 @@ class TestRightClickController:
 
         mock_pag.click.assert_not_called()
 
-        # Separating for >= 150ms arms the controller
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.58)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.60)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.76)
         assert ctrl.armed is True
         assert ctrl.state == "armed"
 
-        # Now contact confirms and clicks
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.78)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.79)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.80)
@@ -1730,17 +1714,14 @@ class TestRightClickController:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
 
-        # Start contact
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         assert ctrl.state == "confirming"
 
-        # Contact breaks to approach (0.26)
         ctrl.process(make_pinch_hand(pinch_ratio=0.26), timestamp=1.25)
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.26), timestamp=1.26)
         assert clicked is False
@@ -1748,18 +1729,15 @@ class TestRightClickController:
         assert ctrl.contact_start_time is None
         mock_pag.click.assert_not_called()
 
-        # Re-contact starts a fresh 200ms confirmation window
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.28)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.29)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.30)
         assert ctrl.state == "confirming"
 
-        # At 1.40 only 100ms has elapsed, so no click
         clicked, _ = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.40)
         assert clicked is False
         mock_pag.click.assert_not_called()
 
-        # Reaching 200ms confirms click
         clicked, _ = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.51)
         assert clicked is True
         mock_pag.click.assert_called_once()
@@ -1768,21 +1746,17 @@ class TestRightClickController:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
 
-        # Contact begins
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         assert ctrl.state == "confirming"
 
-        # Brief tracking loss resets confirmation
         ctrl.on_tracking_lost(prolonged=False)
         assert ctrl.contact_start_time is None
 
-        # Recovery contact must confirm for full 200ms
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.23)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.24)
         clicked, _ = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.25)
@@ -1793,7 +1767,6 @@ class TestRightClickController:
         assert clicked is True
         mock_pag.click.assert_called_once()
 
-        # Tracking lost while in clicked state preserves clicked latch
         ctrl.on_tracking_lost(prolonged=False)
         clicked, _ = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.55)
         assert clicked is False
@@ -1994,14 +1967,12 @@ class TestRightClickIntegration:
         mock_pag = MagicMock()
         ctrl = MouseController(screen_size=(1920, 1080), pyautogui_module=mock_pag)
 
-        # Arm with separation
         hand_sep = make_pinch_hand(pinch_ratio=0.50)
         ctrl.process_landmarks(hand_sep, timestamp=1.0)
         ctrl.process_landmarks(hand_sep, timestamp=1.16)
         assert mock_pag.moveTo.call_count >= 1
         last_move_count = mock_pag.moveTo.call_count
 
-        # Moving in approach range freezes cursor
         hand_app = make_pinch_hand(pinch_ratio=0.26)
         hand_app[8] = FakeLandmark(0.40, 0.40)
         ctrl.process_landmarks(hand_app, timestamp=1.17)
@@ -2013,7 +1984,6 @@ class TestRightClickIntegration:
         assert clicked is False
         assert mock_pag.moveTo.call_count == last_move_count
 
-        # Contact also freezes cursor
         hand_contact = make_pinch_hand(pinch_ratio=0.15)
         hand_contact[8] = FakeLandmark(0.45, 0.45)
         ctrl.process_landmarks(hand_contact, timestamp=1.25)
@@ -2066,7 +2036,6 @@ class TestRightClickIntegration:
         mock_pag = MagicMock()
         ctrl = MouseController(screen_size=(1920, 1080), pyautogui_module=mock_pag)
 
-        # Arm and execute right click
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
@@ -2077,23 +2046,19 @@ class TestRightClickIntegration:
         mock_pag.click.assert_called_with(button="right", _pause=False)
         assert ctrl.click_armed is False
 
-        # Release and rearm (150ms continuous separation)
         hand_sep = make_pinch_hand(pinch_ratio=0.50)
         ctrl.process_landmarks(hand_sep, timestamp=1.43)
         ctrl.process_landmarks(hand_sep, timestamp=1.45)
         ctrl.process_landmarks(hand_sep, timestamp=1.62)
         assert ctrl.right_click_ctrl.state == "armed"
 
-        # Thumb lowered arms left click
         ctrl.process_landmarks(make_hand(thumb_raised=False), timestamp=1.65)
         assert ctrl.click_armed is True
 
-        # Thumb raised fires left click
         mock_pag.click.reset_mock()
         ctrl.process_landmarks(make_hand(thumb_raised=True), timestamp=1.70)
         mock_pag.click.assert_called_once_with(_pause=False)
 
-        # Scrolling still activates smoothly
         scroll_hand = make_hand(index_extended=True, middle_folded=False)
         mode, _, _, _ = ctrl.process_landmarks(scroll_hand, timestamp=1.75)
         assert mode == "SCROLL"
@@ -2279,7 +2244,6 @@ class TestGentlePinchSensitivityAndInteractions:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
@@ -2303,7 +2267,6 @@ class TestGentlePinchSensitivityAndInteractions:
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # Holding separated fingertips at ratio 0.19 stays in approach range, never confirming
         for t in (1.20, 1.30, 1.40, 1.50, 1.60, 1.70):
             clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.19), timestamp=t)
             assert clicked is False
@@ -2318,12 +2281,10 @@ class TestGentlePinchSensitivityAndInteractions:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # At ratio 0.24, hand is in approach range (0.18 < 0.24 <= 0.28), not contact
         for t in (1.20, 1.30, 1.40, 1.50, 1.70):
             clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.24), timestamp=t)
             assert clicked is False
@@ -2372,30 +2333,25 @@ class TestGentlePinchSensitivityAndInteractions:
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
 
-        # Contact starts confirmation
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.17)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         assert ctrl.state == "confirming"
 
-        # Movement into approach range breaks contact confirmation
         ctrl.process(make_pinch_hand(pinch_ratio=0.26), timestamp=1.27)
         ctrl.process(make_pinch_hand(pinch_ratio=0.26), timestamp=1.28)
         assert ctrl.state == "approaching"
         assert ctrl.contact_start_time is None
 
-        # Re-entering contact restarts the confirmation clock
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.30)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.31)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.32)
         assert ctrl.state == "confirming"
 
-        # Not yet 200ms of continuous contact
         clicked, _ = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.42)
         assert clicked is False
         mock_pag.click.assert_not_called()
 
-        # Completes 200ms confirmation
         clicked, _ = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.53)
         assert clicked is True
         mock_pag.click.assert_called_once()
@@ -2422,7 +2378,6 @@ class TestGentlePinchSensitivityAndInteractions:
 
         assert mock_pag.click.call_count == 1
 
-        # Separating for >= 150ms rearms
         ctrl.process(make_pinch_hand(pinch_ratio=0.40), timestamp=1.78)
         ctrl.process(make_pinch_hand(pinch_ratio=0.40), timestamp=1.80)
         assert ctrl.armed is False
@@ -2430,7 +2385,6 @@ class TestGentlePinchSensitivityAndInteractions:
         assert ctrl.state == "armed"
         assert ctrl.armed is True
 
-        # Second deliberate click
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.97)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.98)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=2.00)
@@ -2514,14 +2468,12 @@ class TestGentlePinchSensitivityAndInteractions:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation in valid pose
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # Ring finger extended (invalid right click pose) even with close fingertips
         invalid_hand = make_pinch_hand(pinch_ratio=0.11)
-        invalid_hand[16] = FakeLandmark(0.55, 0.20)  # extend ring finger
+        invalid_hand[16] = FakeLandmark(0.55, 0.20)
         for t in (1.20, 1.30, 1.40, 1.50):
             clicked, freeze = ctrl.process(invalid_hand, timestamp=t)
             assert clicked is False
@@ -2535,17 +2487,14 @@ class TestGentlePinchSensitivityAndInteractions:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Disarmed initially
         assert ctrl.armed is False
         assert ctrl.state == "disarmed"
 
-        # Separate for only 100ms
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.10)
         assert ctrl.armed is False
         assert ctrl.state == "disarmed"
 
-        # Immediate contact does not trigger confirmation because controller is not armed
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.15)
         assert clicked is False
         assert ctrl.state == "disarmed"
@@ -2556,12 +2505,10 @@ class TestGentlePinchSensitivityAndInteractions:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # Filtered contact starts at 1.19; 190ms until 1.38 is below confirmation.
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
@@ -2569,7 +2516,6 @@ class TestGentlePinchSensitivityAndInteractions:
         assert clicked is False
         assert ctrl.state == "confirming"
 
-        # Release at 1.40 breaks contact
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.40)
         assert ctrl.contact_start_time is None
         mock_pag.click.assert_not_called()
@@ -2595,9 +2541,6 @@ class TestRightClickFixVerification:
         mock_pag = MagicMock()
         ctrl = MouseController(screen_size=(1920, 1080), pyautogui_module=mock_pag)
 
-        # Create hand with intermediate middle finger:
-        # PIP=(0.50, 0.45), TIP=(0.50, 0.45)
-        # is_right_click_pose is True, but is_pointing_pose is False and is_scroll_pose is False
         hand = make_pinch_hand(pinch_ratio=0.50)
         hand[10] = FakeLandmark(0.50, 0.45)
         hand[12] = FakeLandmark(0.50, 0.45)
@@ -2606,7 +2549,6 @@ class TestRightClickFixVerification:
         assert is_pointing_pose(hand) is False
         assert is_scroll_pose(hand) is False
 
-        # Frame 1: starts separation confirmation
         mode1, clicked1, _, _ = ctrl.process_landmarks(hand, timestamp=1.0)
         assert mode1 == "CURSOR"
         assert clicked1 is False
@@ -2614,13 +2556,11 @@ class TestRightClickFixVerification:
         assert ctrl.right_click_ctrl.armed is False
         assert ctrl.right_click_ctrl.separation_start_time == 1.0
 
-        # Frame 2: after 160ms (>= 150ms), arms successfully through MouseController!
         mode2, clicked2, _, _ = ctrl.process_landmarks(hand, timestamp=1.16)
         assert mode2 == "CURSOR"
         assert clicked2 is False
         assert ctrl.right_click_ctrl.armed is True
         assert ctrl.right_click_ctrl.state == "armed"
-        # Cursor should not have moved because hand is in intermediate pose, not pointing pose
         assert mock_pag.moveTo.call_count == 0
 
     def test_gentle_deliberate_contact_with_realistic_distance_noise_clicks(self):
@@ -2628,19 +2568,16 @@ class TestRightClickFixVerification:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # Transition into gentle contact (base ~ 0.11)
         ctrl.process(make_pinch_hand(pinch_ratio=0.26), timestamp=1.17)
         ctrl.process(make_pinch_hand(pinch_ratio=0.15), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         assert ctrl.state == "confirming"
 
-        # Realistic noisy distances around 0.11 (fluctuating between 0.10 and 0.13, well <= 0.14)
         noisy_ratios = [0.105, 0.125, 0.110, 0.130, 0.115]
         t = 1.23
         for ratio in noisy_ratios:
@@ -2650,7 +2587,6 @@ class TestRightClickFixVerification:
             assert ctrl.state == "confirming"
             t += 0.03
 
-        # At t=1.42 (> 200ms of continuous contact confirmation from 1.20), click fires
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.42)
         assert clicked is True
         assert freeze is True
@@ -2665,21 +2601,16 @@ class TestRightClickFixVerification:
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # Contact begins at 1.20
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         assert ctrl.state == "confirming"
 
-        # At 1.35 (150ms in), fingers suddenly separate to approach range (raw=0.22)
-        # Smoothed ratio: 0.60 * 0.22 + 0.40 * 0.11 = 0.132 + 0.044 = 0.176 (> 0.14)
-        # Even if filter lagged below 0.14, raw_ratio is 0.22 > 0.14
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.22), timestamp=1.35)
         assert clicked is False
         assert ctrl.state == "approaching"
         assert ctrl.contact_start_time is None
 
-        # At 1.42 (past original 200ms mark), no click is ever dispatched
         clicked, freeze = ctrl.process(make_pinch_hand(pinch_ratio=0.22), timestamp=1.42)
         assert clicked is False
         mock_pag.click.assert_not_called()
@@ -2692,13 +2623,11 @@ class TestRightClickFixVerification:
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
 
-        # Brief contact for ~40ms
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         assert ctrl.state == "confirming"
 
-        # Release to approach at 1.25
         ctrl.process(make_pinch_hand(pinch_ratio=0.27), timestamp=1.25)
         ctrl.process(make_pinch_hand(pinch_ratio=0.27), timestamp=1.27)
         assert ctrl.state == "approaching"
@@ -2712,13 +2641,11 @@ class TestRightClickFixVerification:
 
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
-        # Settle into approach range
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.25), timestamp=1.17)
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.25), timestamp=1.18)
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.25), timestamp=1.19)
         initial_moves = mock_pag.moveTo.call_count
 
-        # Sustained approach range (ratio=0.25, contact is <=0.14)
         for i in range(15):
             t = 1.20 + i * 0.033
             hand = make_pinch_hand(pinch_ratio=0.25)
@@ -2736,7 +2663,6 @@ class TestRightClickFixVerification:
         mock_pag = MagicMock()
         ctrl = MouseController(screen_size=(1920, 1080), pyautogui_module=mock_pag)
 
-        # Start with closed pinch
         closed_hand = make_pinch_hand(pinch_ratio=0.11)
         for i in range(10):
             t = 1.0 + i * 0.033
@@ -2747,7 +2673,6 @@ class TestRightClickFixVerification:
 
         mock_pag.click.assert_not_called()
 
-        # Separate beyond release threshold (0.35)
         sep_hand = make_pinch_hand(pinch_ratio=0.50)
         ctrl.process_landmarks(sep_hand, timestamp=1.38)
         ctrl.process_landmarks(sep_hand, timestamp=1.40)
@@ -2755,7 +2680,6 @@ class TestRightClickFixVerification:
         ctrl.process_landmarks(sep_hand, timestamp=1.56)
         assert ctrl.right_click_ctrl.armed is True
 
-        # Now deliberate contact confirms and clicks
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.11), timestamp=1.58)
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.11), timestamp=1.59)
         ctrl.process_landmarks(make_pinch_hand(pinch_ratio=0.11), timestamp=1.60)
@@ -2768,25 +2692,21 @@ class TestRightClickFixVerification:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Arm with separation
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.0)
         ctrl.process(make_pinch_hand(pinch_ratio=0.50), timestamp=1.16)
         assert ctrl.armed is True
 
-        # Contact begins
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.18)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.19)
         ctrl.process(make_pinch_hand(pinch_ratio=0.11), timestamp=1.20)
         assert ctrl.state == "confirming"
         assert ctrl.pinch_ratio <= 0.14
 
-        # Tracking lost: landmarks become None
         ctrl.process(None, timestamp=1.25)
         assert ctrl.contact_start_time is None
         assert ctrl.pinch_ratio == 999.0
         assert ctrl.raw_pinch_ratio == 999.0
 
-        # When hand reappears separated, filter initializes cleanly without blending with old 0.11
         ctrl.process(make_pinch_hand(pinch_ratio=0.45), timestamp=1.30)
         assert abs(ctrl.pinch_ratio - 0.45) < 1e-4
         assert abs(ctrl.raw_pinch_ratio - 0.45) < 1e-4
@@ -2798,21 +2718,18 @@ class TestRightClickFixVerification:
         mock_pag = MagicMock()
         ctrl = RightClickController(pyautogui_module=mock_pag)
 
-        # Empty / short list
         clicked, freeze = ctrl.process([], timestamp=1.0)
         assert clicked is False
         assert freeze is False
         assert ctrl.is_pose_valid is False
         assert ctrl.pose_rejection_reason == "Missing hand landmarks"
 
-        # None landmarks
         clicked, freeze = ctrl.process(None, timestamp=1.1)
         assert clicked is False
         assert freeze is False
         assert ctrl.is_pose_valid is False
         assert ctrl.pose_rejection_reason == "Missing hand landmarks"
 
-        # Degenerate hand scale
         hand = [FakeLandmark(0.5, 0.5)] * 21
         clicked, freeze = ctrl.process(hand, timestamp=1.2)
         assert clicked is False
@@ -2826,7 +2743,6 @@ class TestRightClickFixVerification:
         mock_pag.size.return_value = (1920, 1080)
         ctrl = MouseController(screen_size=(1920, 1080), pyautogui_module=mock_pag)
 
-        # Hand in approach range (0.26)
         hand = make_pinch_hand(pinch_ratio=0.26)
 
         ctrl.process_landmarks(hand, timestamp=1.0)
@@ -2836,7 +2752,6 @@ class TestRightClickFixVerification:
         assert clicked is False
         assert scroll_val == 0
         assert scrolled is False
-        # Neither moveTo nor click nor scroll were dispatched
         assert mock_pag.moveTo.call_count == 0
         assert mock_pag.click.call_count == 0
         assert mock_pag.scroll.call_count == 0
@@ -2865,37 +2780,29 @@ class TestRightClickFixVerification:
 
     def test_pose_rejection_reasons(self):
         """get_right_click_pose_status returns specific informative reasons for rejection."""
-        # Valid pose
         hand = make_pinch_hand(pinch_ratio=0.50)
         valid, reason = get_right_click_pose_status(hand)
         assert valid is True
         assert reason == "Valid right-click pose"
 
-        # Missing landmarks
         valid, reason = get_right_click_pose_status(None)
         assert valid is False
         assert "Missing" in reason
 
-        # Index folded
         hand_idx_folded = make_pinch_hand(pinch_ratio=0.50)
-        hand_idx_folded[8] = FakeLandmark(0.50, 0.75) # folded below PIP
+        hand_idx_folded[8] = FakeLandmark(0.50, 0.75)
         valid, reason = get_right_click_pose_status(hand_idx_folded)
         assert valid is False
         assert "Index" in reason
 
-        # Ring extended
         hand_ring_ext = make_pinch_hand(pinch_ratio=0.50)
-        hand_ring_ext[16] = FakeLandmark(0.55, 0.20) # extended
+        hand_ring_ext[16] = FakeLandmark(0.55, 0.20)
         valid, reason = get_right_click_pose_status(hand_ring_ext)
         assert valid is False
         assert "Ring" in reason
 
-        # Pinky extended
         hand_pky_ext = make_pinch_hand(pinch_ratio=0.50)
-        hand_pky_ext[20] = FakeLandmark(0.60, 0.20) # extended
+        hand_pky_ext[20] = FakeLandmark(0.60, 0.20)
         valid, reason = get_right_click_pose_status(hand_pky_ext)
         assert valid is False
         assert "Pinky" in reason
-
-
-

@@ -19,7 +19,6 @@ import threading
 import time
 import tkinter as tk
 
-# Named configuration constants for desktop feedback
 DEFAULT_FLASH_ENABLED: bool = True
 DEFAULT_FLASH_PEAK_OPACITY: float = 0.18
 DEFAULT_FLASH_DURATION: float = 0.25
@@ -59,7 +58,6 @@ class DesktopOverlayManager:
         self._flash_win: tk.Toplevel | None = None
         self._notify_win: tk.Toplevel | None = None
 
-        # Telemetry / counters for testing & diagnostics
         self.flash_trigger_count: int = 0
         self.notification_trigger_count: int = 0
         self.last_triggered_type: str = ""
@@ -80,7 +78,6 @@ class DesktopOverlayManager:
             daemon=True,
         )
         self._thread.start()
-        # Wait briefly for Tk root to initialize
         self._ready_event.wait(timeout=1.0)
 
     def show_success(self, filename: str, filepath: str = ""):
@@ -112,9 +109,6 @@ class DesktopOverlayManager:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=0.6)
 
-    # -------------------------------------------------------------------------
-    # Win32 Window Styles Helper
-    # -------------------------------------------------------------------------
     def _make_click_through(self, window: tk.Toplevel):
         """
         Applies Win32 extended window styles to make the overlay completely
@@ -147,9 +141,6 @@ class DesktopOverlayManager:
         except Exception:
             pass
 
-    # -------------------------------------------------------------------------
-    # UI Thread Main Loop
-    # -------------------------------------------------------------------------
     def _ui_thread_main(self):
         try:
             root = tk.Tk()
@@ -223,15 +214,11 @@ class DesktopOverlayManager:
                 pass
             self._notify_win = None
 
-    # -------------------------------------------------------------------------
-    # Flash Overlay Animation
-    # -------------------------------------------------------------------------
     def _trigger_flash(self):
         """Spawns fullscreen translucent white flash overlay and fades it out."""
         if not self._root:
             return
 
-        # Replace existing flash window if already present
         if self._flash_win:
             try:
                 self._flash_win.destroy()
@@ -294,9 +281,6 @@ class DesktopOverlayManager:
         except Exception as exc:
             print(f"[DesktopOverlay] Flash creation failed: {exc}")
 
-    # -------------------------------------------------------------------------
-    # Compact Notification Card
-    # -------------------------------------------------------------------------
     def _trigger_notification(self, is_success: bool, title: str, detail: str):
         """
         Spawns a sleek, compact desktop notification near the top-right corner.
@@ -305,7 +289,6 @@ class DesktopOverlayManager:
         if not self._root:
             return
 
-        # Replace existing notification window cleanly
         if self._notify_win:
             try:
                 self._notify_win.destroy()
@@ -340,7 +323,6 @@ class DesktopOverlayManager:
             icon_symbol = "✓" if is_success else "✕"
             icon_color = "#4caf50" if is_success else "#f44336"
 
-            # Outer border frame
             card = tk.Frame(
                 win,
                 bg="#1c1d22",
@@ -349,7 +331,6 @@ class DesktopOverlayManager:
             )
             card.pack(fill="both", expand=True, padx=1, pady=1)
 
-            # Left icon badge
             icon_lbl = tk.Label(
                 card,
                 text=icon_symbol,
@@ -360,7 +341,6 @@ class DesktopOverlayManager:
             )
             icon_lbl.pack(side="left", padx=(10, 6))
 
-            # Text container
             text_frame = tk.Frame(card, bg="#1c1d22")
             text_frame.pack(side="left", fill="both", expand=True, pady=8)
 
@@ -375,7 +355,6 @@ class DesktopOverlayManager:
             )
             title_lbl.pack(fill="x")
 
-            # Truncate detail with ellipsis if too long to prevent display overflow
             detail_str = os.path.basename(detail) if detail else ""
             if len(detail_str) > 42:
                 detail_str = detail_str[:39] + "..."
